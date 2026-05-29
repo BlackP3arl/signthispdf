@@ -298,6 +298,48 @@
   }
 }
 
+.payment-notice {
+  margin: 0 0 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  background: rgba(196, 92, 38, 0.1);
+  color: var(--ink);
+  font-size: 0.85rem;
+}
+
+.paywall {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--paper);
+  text-align: center;
+}
+
+.plan-name {
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.plan-price {
+  margin: 0.25rem 0 0.75rem;
+  font-family: 'Instrument Serif', Georgia, serif;
+  font-size: 2rem;
+  color: var(--accent);
+}
+
+.plan-features {
+  margin: 0 0 1rem;
+  padding-left: 1.1rem;
+  text-align: left;
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+}
+
+.plan-features li {
+  margin-bottom: 0.35rem;
+}
+
 .preview-caption {
   display: block;
   font-size: 0.7rem;

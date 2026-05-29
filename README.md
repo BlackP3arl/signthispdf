@@ -8,7 +8,7 @@ Everything runs locally in your browser — files are never uploaded to a server
 
 - Open any PDF file
 - **Typed signature** — Simple mode with three font styles
-- **AI signature** — Gemini via OpenRouter generates 3 handwritten-style options to choose from
+- **AI signature (paid)** — Plan 1 “Just Once” ($1): one AI generation per session, unlimited PDF signing with that signature, no signup
 - **Image signature** (PNG, JPG, WebP, SVG)
 - Drag to position, resize with the corner handle
 - Multi-page support
@@ -25,15 +25,18 @@ npm run dev
 
 Open the URL shown in the terminal (usually http://localhost:5173).
 
-### AI signatures (OpenRouter + Gemini)
+### AI signatures (Stripe + OpenRouter + Gemini)
 
 1. Copy `.env.example` to `.env`
 2. Set `OPENROUTER_API_KEY` from [openrouter.ai/keys](https://openrouter.ai/keys)
-3. Optional: set `OPENROUTER_IMAGE_MODEL` (default: `google/gemini-2.5-flash-image`)
+3. Set `STRIPE_SECRET_KEY` from [Stripe Dashboard](https://dashboard.stripe.com/apikeys) (test mode is fine)
+4. Set `ENTITLEMENT_SECRET` to a long random string
+5. Set `VITE_APP_URL` to your app URL (e.g. `http://localhost:5173`)
+6. Optional: set `OPENROUTER_IMAGE_MODEL` (default: `google/gemini-2.5-flash-image`)
 
-Under **Type → AI signature**, enter your name and click **Generate signatures**. Three variations are created in parallel; pick one, then **Place on page**.
+Under **Type → AI signature**, pay **$1 (Just Once)** to unlock one AI generation this browser session. Pick one of three variations, then place that signature on unlimited PDFs until you close the tab.
 
-API calls run through a local Vite proxy so your key never ships to the browser.
+API calls run through a local Vite proxy so secrets never ship to the browser.
 
 ## Build
 

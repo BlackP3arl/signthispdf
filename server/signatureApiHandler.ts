@@ -1,17 +1,18 @@
 import type { IncomingMessage, ServerResponse } from 'node:http'
+import { createEntitlementToken, getEntitlementSecret, verifyEntitlementToken } from './entitlement'
+import {
+  applyCors,
+  getAllowedOrigins,
+  handleOptions,
+  readJsonBody,
+  sendJson,
+} from './httpUtils'
 import { generateSignatureVariations } from './openRouter'
 
 const DEFAULT_MODEL = 'google/gemini-2.5-flash-image'
-const MAX_BODY_BYTES = 4 * 1024
 const MAX_NAME_LENGTH = 80
 const RATE_LIMIT_WINDOW_MS = 60_000
 const RATE_LIMIT_MAX_REQUESTS = 8
-const ALLOWED_ORIGINS = new Set([
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://localhost:4173',
-  'http://127.0.0.1:4173',
-])
 
 type RateLimitEntry = {
   count: number
@@ -19,42 +20,6 @@ type RateLimitEntry = {
 }
 
 const requestCounters = new Map<string, RateLimitEntry>()
-
-function readJsonBody(req: IncomingMessage): Promise<unknown> {
-  return new Promise((resolve, reject) => {
-    const chunks: Buffer[] = []
-    let totalBytes = 0
-    req.on('data', (chunk: Buffer) => {
-      totalBytes += chunk.length
-      if (totalBytes > MAX_BODY_BYTES) {
-        reject(new Error('Request body too large'))
-        req.destroy()
-        return
-      }
-      chunks.push(chunk)
-    })
-    req.on('end', () => {
-      try {
-        const raw = Buffer.concat(chunks).toString('utf8')
-        resolve(raw ? JSON.parse(raw) : {})
-      } catch {
-        reject(new Error('Invalid JSON body'))
-      }
-    })
-    req.on('error', reject)
-  })
-}
-
-function sendJson(res: ServerResponse, status: number, payload: unknown) {
-  res.statusCode = status
-  res.setHeader('Content-Type', 'application/json')
-  res.end(JSON.stringify(payload))
-}
-
-function isAllowedOrigin(origin: string | undefined): boolean {
-  if (!origin) return false
-  return ALLOWED_ORIGINS.has(origin)
-}
 
 function isRateLimited(key: string): boolean {
   const now = Date.now()
@@ -69,23 +34,15 @@ function isRateLimited(key: string): boolean {
 }
 
 export function createSignatureApiHandler(env: Record<string, string>) {
+  const allowedOrigins = getAllowedOrigins(env)
+  const entitlementSecret = getEntitlementSecret(env)
+
   return async (req: IncomingMessage, res: ServerResponse) => {
-    const origin = req.headers.origin
-    if (!isAllowedOrigin(origin)) {
+    if (!applyCors(req, res, allowedOrigins)) {
       sendJson(res, 403, { error: 'Forbidden origin' })
       return
     }
-    const allowedOrigin = origin as string
-    res.setHeader('Vary', 'Origin')
-    res.setHeader('Access-Control-Allow-Origin', allowedOrigin)
-
-    if (req.method === 'OPTIONS') {
-      res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
-      res.statusCode = 204
-      res.end()
-      return
-    }
+    if (handleOptions(req, res, 'POST, OPTIONS')) return
 
     if (req.method !== 'POST') {
       sendJson(res, 405, { error: 'Method not allowed' })
@@ -101,6 +58,25 @@ export function createSignatureApiHandler(env: Record<string, string>) {
     const rateLimitKey = req.socket.remoteAddress ?? 'unknown'
     if (isRateLimited(rateLimitKey)) {
       sendJson(res, 429, { error: 'Too many requests, try again in a minute' })
+      return
+    }
+
+    if (!entitlementSecret) {
+      sendJson(res, 500, { error: 'Entitlement signing is not configured' })
+      return
+    }
+
+    const entitlementToken = req.headers['x-entitlement-token']
+    const tokenValue = Array.isArray(entitlementToken) ? entitlementToken[0] : entitlementToken
+    const entitlement = verifyEntitlementToken(entitlementSecret, tokenValue)
+    if (!entitlement?.paid) {
+      sendJson(res, 402, { error: 'Payment required for AI signatures' })
+      return
+    }
+    if (entitlement.used) {
+      sendJson(res, 403, {
+        error: 'AI generation already used this session. Reuse your saved signature.',
+      })
       return
     }
 
@@ -126,7 +102,8 @@ export function createSignatureApiHandler(env: Record<string, string>) {
 
       const model = env.OPENROUTER_IMAGE_MODEL || DEFAULT_MODEL
       const variations = await generateSignatureVariations(apiKey, model, name)
-      sendJson(res, 200, { variations })
+      const updatedToken = createEntitlementToken(entitlementSecret, entitlement.sid, true)
+      sendJson(res, 200, { variations, entitlementToken: updatedToken, generationUsed: true })
     } catch (err) {
       const message = err instanceof Error ? err.message : ''
       const status =

@@ -6,6 +6,7 @@ import { sourceToDataUrl } from './lib/signatureImage'
 import type { PageMetrics, PlacedSignature, SignatureSource } from './types'
 import { PdfViewer } from './components/PdfViewer'
 import { SignatureCreator } from './components/SignatureCreator'
+import { usePaymentReturn } from './hooks/usePaymentReturn'
 import './App.css'
 
 function newId() {
@@ -29,6 +30,7 @@ async function defaultSignatureSize(source: SignatureSource): Promise<{ width: n
 }
 
 export default function App() {
+  const { paymentMessage, verifying } = usePaymentReturn()
   const [pdfDoc, setPdfDoc] = useState<pdfjs.PDFDocumentProxy | null>(null)
   const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null)
   const [fileName, setFileName] = useState('document.pdf')
@@ -137,7 +139,11 @@ export default function App() {
 
       <main className="app-main">
         <aside className="sidebar">
-          <SignatureCreator onCreate={placeSignature} />
+          <SignatureCreator
+            onCreate={placeSignature}
+            paymentNotice={paymentMessage}
+            paymentVerifying={verifying}
+          />
           {pdfDoc && (
             <section className="panel meta-panel">
               <p className="file-name">{fileName}</p>

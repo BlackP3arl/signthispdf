@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { SignatureSource } from '../types'
+import {
+  getSavedAiSignature,
+  hasPaidAccess,
+  isGenerationUsed,
+  saveAiSignature,
+} from '../lib/aiEntitlement'
 import { generateAiSignatures, type AiSignatureVariation } from '../lib/generateAiSignatures'
+import { startJustOnceCheckout } from '../lib/payment'
 import { processSignatureImage } from '../lib/processSignatureImage'
 import { textToDataUrl } from '../lib/signatureImage'
 
@@ -14,15 +21,22 @@ type TextMode = 'simple' | 'ai'
 
 type Props = {
   onCreate: (source: SignatureSource) => void
+  paymentNotice?: string | null
+  paymentVerifying?: boolean
 }
 
-export function SignatureCreator({ onCreate }: Props) {
+export function SignatureCreator({ onCreate, paymentNotice, paymentVerifying }: Props) {
   const [mode, setMode] = useState<'image' | 'text'>('text')
   const [textMode, setTextMode] = useState<TextMode>('simple')
   const [text, setText] = useState('')
   const [fontId, setFontId] = useState(FONTS[0].id)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [textPreview, setTextPreview] = useState<string | null>(null)
+
+  const [paid, setPaid] = useState(hasPaidAccess)
+  const [generationUsed, setGenerationUsed] = useState(isGenerationUsed)
+  const [savedSignature, setSavedSignature] = useState<string | null>(getSavedAiSignature)
+  const [checkoutLoading, setCheckoutLoading] = useState(false)
 
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
@@ -32,6 +46,14 @@ export function SignatureCreator({ onCreate }: Props) {
 
   const font = FONTS.find((f) => f.id === fontId) ?? FONTS[0]
   const selectedVariation = aiVariations.find((v) => v.id === selectedVariationId) ?? null
+  const activeAiSignature = processedPreview ?? savedSignature
+
+  useEffect(() => {
+    if (paymentNotice?.includes('successful')) {
+      setPaid(hasPaidAccess())
+      setGenerationUsed(isGenerationUsed())
+    }
+  }, [paymentNotice])
 
   useEffect(() => {
     if (mode !== 'text' || textMode !== 'simple' || !text.trim()) {
@@ -49,17 +71,25 @@ export function SignatureCreator({ onCreate }: Props) {
     let cancelled = false
     processSignatureImage(selectedVariation.dataUrl)
       .then((url) => {
-        if (!cancelled) setProcessedPreview(url)
+        if (!cancelled) {
+          setProcessedPreview(url)
+          saveAiSignature(url)
+          setSavedSignature(url)
+        }
       })
       .catch(() => {
-        if (!cancelled) setProcessedPreview(selectedVariation.dataUrl)
+        if (!cancelled) {
+          setProcessedPreview(selectedVariation.dataUrl)
+          saveAiSignature(selectedVariation.dataUrl)
+          setSavedSignature(selectedVariation.dataUrl)
+        }
       })
     return () => {
       cancelled = true
     }
   }, [selectedVariation])
 
-  const resetAi = () => {
+  const resetAiVariations = () => {
     setAiVariations([])
     setSelectedVariationId(null)
     setAiError(null)
@@ -75,14 +105,26 @@ export function SignatureCreator({ onCreate }: Props) {
     reader.readAsDataURL(file)
   }
 
+  const handleCheckout = async () => {
+    setCheckoutLoading(true)
+    setAiError(null)
+    try {
+      await startJustOnceCheckout()
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : 'Checkout failed')
+      setCheckoutLoading(false)
+    }
+  }
+
   const handleGenerateAi = async () => {
-    if (!text.trim()) return
+    if (!text.trim() || generationUsed) return
     setAiLoading(true)
     setAiError(null)
-    resetAi()
+    resetAiVariations()
     try {
       const variations = await generateAiSignatures(text)
       setAiVariations(variations)
+      setGenerationUsed(true)
       if (variations.length === 1) {
         setSelectedVariationId(variations[0].id)
       }
@@ -110,21 +152,22 @@ export function SignatureCreator({ onCreate }: Props) {
       return
     }
 
-    if (mode === 'text' && textMode === 'ai' && processedPreview) {
-      onCreate({ type: 'image', dataUrl: processedPreview })
-      resetAi()
-      setText('')
+    if (mode === 'text' && textMode === 'ai' && activeAiSignature) {
+      onCreate({ type: 'image', dataUrl: activeAiSignature })
     }
   }
 
   const canAdd =
     (mode === 'image' && imagePreview) ||
     (mode === 'text' && textMode === 'simple' && text.trim().length > 0) ||
-    (mode === 'text' && textMode === 'ai' && !!processedPreview)
+    (mode === 'text' && textMode === 'ai' && !!activeAiSignature)
 
   return (
     <section className="panel signature-creator">
       <h2>Your signature</h2>
+      {paymentNotice && <p className="payment-notice">{paymentNotice}</p>}
+      {paymentVerifying && <p className="payment-notice">Verifying payment…</p>}
+
       <div className="mode-tabs" role="tablist">
         <button
           type="button"
@@ -156,7 +199,7 @@ export function SignatureCreator({ onCreate }: Props) {
               className={textMode === 'simple' ? 'active' : ''}
               onClick={() => {
                 setTextMode('simple')
-                resetAi()
+                resetAiVariations()
               }}
             >
               Simple
@@ -179,7 +222,7 @@ export function SignatureCreator({ onCreate }: Props) {
               value={text}
               onChange={(e) => {
                 setText(e.target.value)
-                if (textMode === 'ai') resetAi()
+                if (textMode === 'ai' && !generationUsed) resetAiVariations()
               }}
               placeholder="Jane Doe"
               autoComplete="off"
@@ -204,11 +247,40 @@ export function SignatureCreator({ onCreate }: Props) {
                 </div>
               )}
             </>
+          ) : !paid ? (
+            <div className="paywall">
+              <p className="plan-name">Plan 1: Just Once</p>
+              <p className="plan-price">$1</p>
+              <ul className="plan-features">
+                <li>One AI signature generation this session</li>
+                <li>Sign unlimited PDFs with that signature</li>
+                <li>No signup required</li>
+              </ul>
+              <button
+                type="button"
+                className="btn primary"
+                disabled={checkoutLoading}
+                onClick={handleCheckout}
+              >
+                {checkoutLoading ? 'Redirecting to checkout…' : 'Pay $1 to unlock AI'}
+              </button>
+            </div>
+          ) : generationUsed && savedSignature && aiVariations.length === 0 ? (
+            <>
+              <p className="ai-intro">
+                Your AI signature is ready. Place it on as many documents as you want this session.
+              </p>
+              <div className="preview-box">
+                <span className="preview-caption">Saved AI signature</span>
+                <img src={savedSignature} alt="Saved AI signature" />
+              </div>
+            </>
+          ) : generationUsed && aiVariations.length === 0 ? (
+            <p className="ai-intro">AI generation was used this session. Pick a saved signature if available.</p>
           ) : (
             <>
               <p className="ai-intro">
-                Generates three handwritten-style signatures from your name using Gemini via
-                OpenRouter.
+                Paid — you can generate AI signatures once this session, then sign unlimited PDFs.
               </p>
               <button
                 type="button"
@@ -216,7 +288,7 @@ export function SignatureCreator({ onCreate }: Props) {
                 disabled={!text.trim() || aiLoading}
                 onClick={handleGenerateAi}
               >
-                {aiLoading ? 'Generating 3 options…' : 'Generate signatures'}
+                {aiLoading ? 'Generating 3 options…' : 'Generate signatures (once)'}
               </button>
 
               {aiError && <p className="error-text">{aiError}</p>}
