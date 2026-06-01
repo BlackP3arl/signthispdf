@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "signthispdf",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-06-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+  "vars": {
+    "BML_MODE": "sandbox",
+    "APP_URL": "http://localhost:5173"
+  },
+  "kv_namespaces": [
+    { "binding": "ENTITLEMENTS", "id": "PLACEHOLDER_REPLACE_AFTER_KV_CREATE" }
+  ]
+}
