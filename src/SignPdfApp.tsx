@@ -111,7 +111,6 @@ export function SignPdfApp() {
     <div className="app">
       <header className="app-header">
         <div className="brand">
-          <span className="brand-mark" aria-hidden />
           <div>
             <h1>SignThisPDF</h1>
             <p>Add a signature anywhere, then download a signed copy.</p>
