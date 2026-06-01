@@ -20,12 +20,13 @@ export async function createTransaction(
   params: { amount: number; currency: string; localId: string; redirectUrl: string },
 ): Promise<BmlTransaction> {
   const signature = await sha1Signature(params.amount, params.currency, env.BML_API_KEY)
+  // No `provider` is sent: it must be enabled per-merchant, and omitting it
+  // lets BML's hosted page offer whatever methods the merchant has enabled.
   const body: Record<string, unknown> = {
     amount: params.amount,
     currency: params.currency,
     localId: params.localId,
     redirectUrl: params.redirectUrl,
-    provider: 'card',
     signMethod: 'sha1',
     apiVersion: '2.0',
     signature,
