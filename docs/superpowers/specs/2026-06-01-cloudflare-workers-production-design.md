@@ -263,3 +263,26 @@ param from `session_id` to `local_id` in `src/lib/payment.ts` and
 5. Vitest test suite.
 6. Updated `.env.example`, `.dev.vars` (gitignored), and a `DEPLOY.md` covering
    KV creation, secret setup, and `wrangler deploy`.
+7. **Complete Stripe removal** — zero Stripe references survive anywhere in the
+   repo (verified by `grep -rni stripe` returning only `package-lock.json`
+   churn, which is regenerated). Specifically:
+   - Delete `server/stripe.ts` (covered by `server/` deletion).
+   - Remove the `stripe` dependency from `package.json` and regenerate the lock.
+   - Drop the `STRIPE_SECRET_KEY` fallback in entitlement secret resolution
+     (use `ENTITLEMENT_SECRET` only).
+   - Rewrite Stripe sections in `README.md` (AI-signatures setup) and
+     `MARKETING.md` ("secure payment flow (Stripe)" → BML Connect; remove the
+     "Set production VITE_APP_URL for Stripe redirects" checklist item).
+   - Remove `STRIPE_SECRET_KEY` and Stripe redirect comments from `.env.example`.
+
+## Stripe Removal Audit (must all be zero after implementation)
+
+| Location | Reference | Resolution |
+|---|---|---|
+| `server/stripe.ts` | entire file | deleted with `server/` |
+| `server/paymentHandlers.ts` | Stripe checkout/verify | rewritten as BML handlers |
+| `server/entitlement.ts` | `STRIPE_SECRET_KEY` fallback | `ENTITLEMENT_SECRET` only |
+| `package.json` | `"stripe": "^22.2.0"` | dependency removed |
+| `.env.example` | `STRIPE_SECRET_KEY` + comments | replaced with BML vars |
+| `README.md` | Stripe setup steps | rewritten for BML Connect |
+| `MARKETING.md` | Stripe mentions (2) | rewritten for BML Connect |
