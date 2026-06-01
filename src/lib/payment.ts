@@ -1,7 +1,7 @@
 import { markGenerationUsed, setEntitlementToken } from './aiEntitlement'
 
 export async function startJustOnceCheckout(): Promise<void> {
-  const response = await fetch('/api/create-checkout-session', {
+  const response = await fetch('/api/create-transaction', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: '{}',
@@ -13,11 +13,11 @@ export async function startJustOnceCheckout(): Promise<void> {
   window.location.href = body.url
 }
 
-export async function verifyCheckoutSession(sessionId: string): Promise<void> {
+export async function verifyCheckoutSession(localId: string): Promise<void> {
   const response = await fetch('/api/verify-payment', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionId }),
+    body: JSON.stringify({ localId }),
   })
   const body = (await response.json()) as {
     entitlementToken?: string

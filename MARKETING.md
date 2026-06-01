@@ -117,7 +117,7 @@ Long-tail: sign pdf without printing, free pdf signer no signup, handwritten sig
 - PDFs are processed locally in the browser
 - No document storage on servers
 - No account or personal data required for free signing
-- AI generation uses a secure payment flow (Stripe)
+- AI generation uses a secure payment flow (BML Connect)
 - Works on desktop, tablet, and mobile
 
 ---
@@ -144,7 +144,7 @@ Long-tail: sign pdf without printing, free pdf signer no signup, handwritten sig
 
 ## Launch checklist
 
-- [ ] Set production `VITE_APP_URL` for Stripe redirects
+- [ ] Set production `APP_URL` and `BML_MODE=production`
 - [ ] Add Open Graph image (1200×630) for social sharing
 - [ ] Submit sitemap to Google Search Console
 - [ ] Share on Product Hunt / Indie Hackers

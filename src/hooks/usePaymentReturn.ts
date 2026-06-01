@@ -8,7 +8,7 @@ export function usePaymentReturn() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const payment = params.get('payment')
-    const sessionId = params.get('session_id')
+    const localId = params.get('local_id')
 
     if (payment === 'cancelled') {
       setPaymentMessage('Checkout cancelled. You can try again anytime.')
@@ -16,10 +16,10 @@ export function usePaymentReturn() {
       return
     }
 
-    if (payment !== 'success' || !sessionId) return
+    if (payment !== 'success' || !localId) return
 
     setVerifying(true)
-    verifyCheckoutSession(sessionId)
+    verifyCheckoutSession(localId)
       .then(() => {
         setPaymentMessage('Payment successful. You can generate one AI signature this session.')
         document.getElementById('sign')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
