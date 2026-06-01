@@ -1,14 +1,7 @@
-import { SIGNATURE_STYLES, type SignatureStyleId } from './signatureStyles'
+import { buildPremiumPrompt } from './signatureStyles'
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
-const OPENROUTER_TIMEOUT_MS = 20_000
-
-export type GeneratedVariation = {
-  id: SignatureStyleId
-  label: string
-  description: string
-  dataUrl: string
-}
+const OPENROUTER_TIMEOUT_MS = 30_000
 
 type OpenRouterMessage = {
   role: string
@@ -27,9 +20,10 @@ function extractImageDataUrl(message: OpenRouterMessage | undefined): string | n
   return url?.startsWith('data:image') ? url : null
 }
 
-async function generateOne(apiKey: string, model: string, styleId: SignatureStyleId, name: string): Promise<GeneratedVariation> {
-  const style = SIGNATURE_STYLES.find((s) => s.id === styleId)
-  if (!style) throw new Error(`Unknown style: ${styleId}`)
+// Generates a single premium-calligraphy signature image (data URL) for a name.
+export async function generateSignature(apiKey: string, model: string, name: string): Promise<string> {
+  const trimmed = name.trim()
+  if (!trimmed) throw new Error('Name is required')
 
   const controller = new AbortController()
   const timeout = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS)
@@ -44,7 +38,7 @@ async function generateOne(apiKey: string, model: string, styleId: SignatureStyl
     },
     body: JSON.stringify({
       model,
-      messages: [{ role: 'user', content: style.buildPrompt(name) }],
+      messages: [{ role: 'user', content: buildPremiumPrompt(trimmed) }],
       modalities: ['image', 'text'],
       image_config: { aspect_ratio: '3:2', image_size: '1K' },
     }),
@@ -55,23 +49,5 @@ async function generateOne(apiKey: string, model: string, styleId: SignatureStyl
   if (!response.ok) throw new Error(`OpenRouter request failed (${response.status})`)
   const dataUrl = extractImageDataUrl(body.choices?.[0]?.message)
   if (!dataUrl) throw new Error('Model returned no image')
-
-  return { id: style.id, label: style.label, description: style.description, dataUrl }
-}
-
-export async function generateSignatureVariations(apiKey: string, model: string, name: string): Promise<GeneratedVariation[]> {
-  const trimmed = name.trim()
-  if (!trimmed) throw new Error('Name is required')
-
-  const results = await Promise.allSettled(
-    SIGNATURE_STYLES.map((style) => generateOne(apiKey, model, style.id, trimmed)),
-  )
-  const ok = results
-    .filter((r): r is PromiseFulfilledResult<GeneratedVariation> => r.status === 'fulfilled')
-    .map((r) => r.value)
-  if (ok.length === 0) {
-    const firstError = results.find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined
-    throw new Error(firstError?.reason?.message ?? 'All signature generations failed')
-  }
-  return ok
+  return dataUrl
 }

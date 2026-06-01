@@ -2,7 +2,7 @@ import type { Env } from './env'
 import { json, allowedOrigins, corsHeaders } from './lib/http'
 import { handleCreateTransaction } from './handlers/createTransaction'
 import { handleVerifyPayment } from './handlers/verifyPayment'
-import { handleGenerateSignatures } from './handlers/generateSignatures'
+import { handlePreviewSignature } from './handlers/previewSignature'
 
 const SECURITY_HEADERS: Record<string, string> = {
   'Content-Security-Policy': [
@@ -57,9 +57,9 @@ export default {
 
       const route = url.pathname.slice('/api/'.length)
       let res: Response
-      if (route === 'create-transaction') res = await handleCreateTransaction(req, env, cors)
+      if (route === 'preview-signature') res = await handlePreviewSignature(req, env, cors)
+      else if (route === 'create-transaction') res = await handleCreateTransaction(req, env, cors)
       else if (route === 'verify-payment') res = await handleVerifyPayment(req, env, cors)
-      else if (route === 'generate-signatures') res = await handleGenerateSignatures(req, env, cors)
       else res = json(404, { error: 'Not found' }, cors)
       return withSecurity(res)
     }

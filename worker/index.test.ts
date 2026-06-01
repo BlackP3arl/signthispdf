@@ -14,19 +14,34 @@ describe('routing + headers', () => {
     expect(res.status).toBe(404)
   })
 
-  it('generate-signatures without a token returns 402', async () => {
+  it('create-transaction without a previewId returns 400', async () => {
     const c = ctx()
     const res = await worker.fetch(
-      new Request('https://app/api/generate-signatures', {
+      new Request('https://app/api/create-transaction', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: 'X' }),
+        body: JSON.stringify({}),
       }),
       env,
       c,
     )
     await waitOnExecutionContext(c)
-    expect(res.status).toBe(402)
+    expect(res.status).toBe(400)
+  })
+
+  it('verify-payment without a localId returns 400', async () => {
+    const c = ctx()
+    const res = await worker.fetch(
+      new Request('https://app/api/verify-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      }),
+      env,
+      c,
+    )
+    await waitOnExecutionContext(c)
+    expect(res.status).toBe(400)
   })
 
   it('applies security headers to API responses', async () => {

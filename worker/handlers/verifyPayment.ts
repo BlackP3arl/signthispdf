@@ -1,11 +1,12 @@
 import type { Env } from '../env'
 import { json, readJson } from '../lib/http'
 import { getTransaction, isPaid } from '../lib/bml'
-import { createToken, seedEntitlement } from '../lib/entitlement'
+import { linkPreviewToPaid, getPaidSignature } from '../lib/preview'
 
+// Confirms a BML payment server-side and, on success, releases the clean
+// (unwatermarked) signature that was generated at preview time. The paid BML
+// transaction is the entitlement — no token is issued.
 export async function handleVerifyPayment(req: Request, env: Env, cors: Record<string, string>): Promise<Response> {
-  if (!env.ENTITLEMENT_SECRET) return json(500, { error: 'Entitlement signing is not configured' }, cors)
-
   let sid = ''
   try {
     const body = (await readJson(req)) as { localId?: string }
@@ -16,16 +17,21 @@ export async function handleVerifyPayment(req: Request, env: Env, cors: Record<s
   }
   if (!sid) return json(400, { error: 'localId is required' }, cors)
 
+  // Idempotency: if this sid was already verified, return the clean signature.
+  const already = await getPaidSignature(env, sid)
+  if (already) return json(200, { dataUrl: already, plan: 'just_once' }, cors)
+
   const pendingRaw = await env.ENTITLEMENTS.get(`pending:${sid}`)
   if (!pendingRaw) return json(402, { error: 'Payment not found' }, cors)
-  const { bmlTxnId } = JSON.parse(pendingRaw) as { bmlTxnId: string }
+  const { bmlTxnId, previewId } = JSON.parse(pendingRaw) as { bmlTxnId: string; previewId: string }
 
   try {
     const txn = await getTransaction(env, bmlTxnId)
     if (!isPaid(txn)) return json(402, { error: 'Payment not completed' }, cors)
-    await seedEntitlement(env, sid)
-    const token = await createToken(env.ENTITLEMENT_SECRET, sid)
-    return json(200, { entitlementToken: token, plan: 'just_once', generationUsed: false }, cors)
+    await linkPreviewToPaid(env, sid, previewId)
+    const dataUrl = await getPaidSignature(env, sid)
+    if (!dataUrl) return json(410, { error: 'Preview expired before payment completed' }, cors)
+    return json(200, { dataUrl, plan: 'just_once' }, cors)
   } catch {
     return json(502, { error: 'Failed to verify payment' }, cors)
   }
