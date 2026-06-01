@@ -5,6 +5,15 @@ export default defineConfig({
   plugins: [
     cloudflareTest({
       wrangler: { configPath: './wrangler.jsonc' },
+      // Hermetic test secrets — keep unit tests independent of .dev.vars so
+      // config-presence checks pass and handlers reach their real logic.
+      miniflare: {
+        bindings: {
+          ENTITLEMENT_SECRET: 'test-secret',
+          OPENROUTER_API_KEY: 'test-openrouter-key',
+          BML_API_KEY: 'test-bml-key',
+        },
+      },
     }),
   ],
 })
