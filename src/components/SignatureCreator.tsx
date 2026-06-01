@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { SignatureSource } from '../types'
-import {
-  getSavedAiSignature,
-  hasPaidAccess,
-  isGenerationUsed,
-  saveAiSignature,
-} from '../lib/aiEntitlement'
-import { generateAiSignatures, type AiSignatureVariation } from '../lib/generateAiSignatures'
+import { getSavedAiSignature, hasPaidAccess, saveAiSignature } from '../lib/aiEntitlement'
+import { previewAiSignature } from '../lib/generateAiSignatures'
 import { startJustOnceCheckout } from '../lib/payment'
 import { processSignatureImage } from '../lib/processSignatureImage'
 import { textToDataUrl } from '../lib/signatureImage'
@@ -33,25 +28,21 @@ export function SignatureCreator({ onCreate, paymentNotice, paymentVerifying }: 
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [textPreview, setTextPreview] = useState<string | null>(null)
 
+  // AI preview-before-pay state
   const [paid, setPaid] = useState(hasPaidAccess)
-  const [generationUsed, setGenerationUsed] = useState(isGenerationUsed)
   const [savedSignature, setSavedSignature] = useState<string | null>(getSavedAiSignature)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState<string | null>(null)
+  const [previewId, setPreviewId] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
 
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiError, setAiError] = useState<string | null>(null)
-  const [aiVariations, setAiVariations] = useState<AiSignatureVariation[]>([])
-  const [selectedVariationId, setSelectedVariationId] = useState<string | null>(null)
-  const [processedPreview, setProcessedPreview] = useState<string | null>(null)
-
   const font = FONTS.find((f) => f.id === fontId) ?? FONTS[0]
-  const selectedVariation = aiVariations.find((v) => v.id === selectedVariationId) ?? null
-  const activeAiSignature = processedPreview ?? savedSignature
 
   useEffect(() => {
     if (paymentNotice?.includes('successful')) {
       setPaid(hasPaidAccess())
-      setGenerationUsed(isGenerationUsed())
+      setSavedSignature(getSavedAiSignature())
     }
   }, [paymentNotice])
 
@@ -63,75 +54,56 @@ export function SignatureCreator({ onCreate, paymentNotice, paymentVerifying }: 
     setTextPreview(textToDataUrl(text.trim(), font.family, '#1a2744'))
   }, [mode, textMode, text, font.family])
 
-  useEffect(() => {
-    if (!selectedVariation) {
-      setProcessedPreview(null)
-      return
-    }
-    let cancelled = false
-    processSignatureImage(selectedVariation.dataUrl)
-      .then((url) => {
-        if (!cancelled) {
-          setProcessedPreview(url)
-          saveAiSignature(url)
-          setSavedSignature(url)
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setProcessedPreview(selectedVariation.dataUrl)
-          saveAiSignature(selectedVariation.dataUrl)
-          setSavedSignature(selectedVariation.dataUrl)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [selectedVariation])
-
-  const resetAiVariations = () => {
-    setAiVariations([])
-    setSelectedVariationId(null)
-    setAiError(null)
-    setProcessedPreview(null)
+  const resetPreview = () => {
+    setPreviewId(null)
+    setPreviewUrl(null)
+    setPreviewError(null)
   }
 
   const handleImage = (file: File | null) => {
     if (!file) return
     const reader = new FileReader()
-    reader.onload = () => {
-      setImagePreview(reader.result as string)
-    }
+    reader.onload = () => setImagePreview(reader.result as string)
     reader.readAsDataURL(file)
   }
 
-  const handleCheckout = async () => {
-    setCheckoutLoading(true)
-    setAiError(null)
+  const handlePreview = async () => {
+    if (!text.trim()) return
+    setPreviewLoading(true)
+    setPreviewError(null)
+    resetPreview()
     try {
-      await startJustOnceCheckout()
+      const { previewId: id, dataUrl } = await previewAiSignature(text)
+      setPreviewId(id)
+      setPreviewUrl(dataUrl)
     } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'Checkout failed')
+      setPreviewError(err instanceof Error ? err.message : 'Preview failed')
+    } finally {
+      setPreviewLoading(false)
+    }
+  }
+
+  const handleCheckout = async () => {
+    if (!previewId) return
+    setCheckoutLoading(true)
+    setPreviewError(null)
+    try {
+      await startJustOnceCheckout(previewId)
+    } catch (err) {
+      setPreviewError(err instanceof Error ? err.message : 'Checkout failed')
       setCheckoutLoading(false)
     }
   }
 
-  const handleGenerateAi = async () => {
-    if (!text.trim() || generationUsed) return
-    setAiLoading(true)
-    setAiError(null)
-    resetAiVariations()
+  const placeSaved = async () => {
+    if (!savedSignature) return
     try {
-      const variations = await generateAiSignatures(text)
-      setAiVariations(variations)
-      setGenerationUsed(true)
-      if (variations.length === 1) {
-        setSelectedVariationId(variations[0].id)
-      }
-    } catch (err) {
-      setAiError(err instanceof Error ? err.message : 'Generation failed')
-    } finally {
-      setAiLoading(false)
+      const processed = await processSignatureImage(savedSignature)
+      saveAiSignature(processed)
+      setSavedSignature(processed)
+      onCreate({ type: 'image', dataUrl: processed })
+    } catch {
+      onCreate({ type: 'image', dataUrl: savedSignature })
     }
   }
 
@@ -141,26 +113,19 @@ export function SignatureCreator({ onCreate, paymentNotice, paymentVerifying }: 
       setImagePreview(null)
       return
     }
-
     if (mode === 'text' && textMode === 'simple' && text.trim()) {
-      onCreate({
-        type: 'text',
-        text: text.trim(),
-        fontFamily: font.family,
-        color: '#1a2744',
-      })
+      onCreate({ type: 'text', text: text.trim(), fontFamily: font.family, color: '#1a2744' })
       return
     }
-
-    if (mode === 'text' && textMode === 'ai' && activeAiSignature) {
-      onCreate({ type: 'image', dataUrl: activeAiSignature })
+    if (mode === 'text' && textMode === 'ai' && savedSignature) {
+      void placeSaved()
     }
   }
 
   const canAdd =
-    (mode === 'image' && imagePreview) ||
+    (mode === 'image' && !!imagePreview) ||
     (mode === 'text' && textMode === 'simple' && text.trim().length > 0) ||
-    (mode === 'text' && textMode === 'ai' && !!activeAiSignature)
+    (mode === 'text' && textMode === 'ai' && !!savedSignature)
 
   return (
     <section className="panel signature-creator">
@@ -197,10 +162,7 @@ export function SignatureCreator({ onCreate, paymentNotice, paymentVerifying }: 
               role="tab"
               aria-selected={textMode === 'simple'}
               className={textMode === 'simple' ? 'active' : ''}
-              onClick={() => {
-                setTextMode('simple')
-                resetAiVariations()
-              }}
+              onClick={() => setTextMode('simple')}
             >
               Simple
             </button>
@@ -222,7 +184,7 @@ export function SignatureCreator({ onCreate, paymentNotice, paymentVerifying }: 
               value={text}
               onChange={(e) => {
                 setText(e.target.value)
-                if (textMode === 'ai' && !generationUsed) resetAiVariations()
+                if (textMode === 'ai') resetPreview()
               }}
               placeholder="Jane Doe"
               autoComplete="off"
@@ -247,85 +209,71 @@ export function SignatureCreator({ onCreate, paymentNotice, paymentVerifying }: 
                 </div>
               )}
             </>
-          ) : !paid ? (
-            <div className="paywall">
-              <p className="plan-name">Plan 1: Just Once</p>
-              <p className="plan-price">$1</p>
-              <ul className="plan-features">
-                <li>One AI signature generation this session</li>
-                <li>Sign unlimited PDFs with that signature</li>
-                <li>No signup required</li>
-              </ul>
-              <button
-                type="button"
-                className="btn primary"
-                disabled={checkoutLoading}
-                onClick={handleCheckout}
-              >
-                {checkoutLoading ? 'Redirecting to checkout…' : 'Pay $1 to unlock AI'}
-              </button>
-            </div>
-          ) : generationUsed && savedSignature && aiVariations.length === 0 ? (
+          ) : savedSignature ? (
             <>
               <p className="ai-intro">
                 Your AI signature is ready. Place it on as many documents as you want this session.
               </p>
               <div className="preview-box">
-                <span className="preview-caption">Saved AI signature</span>
+                <span className="preview-caption">Your AI signature</span>
                 <img src={savedSignature} alt="Saved AI signature" />
               </div>
             </>
-          ) : generationUsed && aiVariations.length === 0 ? (
-            <p className="ai-intro">AI generation was used this session. Pick a saved signature if available.</p>
           ) : (
             <>
               <p className="ai-intro">
-                Paid — you can generate AI signatures once this session, then sign unlimited PDFs.
+                Premium handwritten calligraphy signature. Preview it free — pay <strong>$1</strong> only when you
+                love it.
               </p>
               <button
                 type="button"
                 className="btn secondary generate-btn"
-                disabled={!text.trim() || aiLoading}
-                onClick={handleGenerateAi}
+                disabled={!text.trim() || previewLoading || paid}
+                onClick={handlePreview}
               >
-                {aiLoading ? 'Generating 3 options…' : 'Generate signatures (once)'}
+                {previewLoading ? 'Creating preview…' : previewUrl ? 'Regenerate preview' : 'Preview signature (free)'}
               </button>
 
-              {aiError && <p className="error-text">{aiError}</p>}
+              {previewError && <p className="error-text">{previewError}</p>}
 
-              {aiLoading && (
-                <div className="variation-grid loading">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="variation-card skeleton" aria-hidden />
-                  ))}
+              {previewLoading && (
+                <div className="preview-box">
+                  <div className="variation-card skeleton" aria-hidden />
                 </div>
               )}
 
-              {!aiLoading && aiVariations.length > 0 && (
+              {!previewLoading && previewUrl && (
                 <>
-                  <p className="pick-label">Choose one</p>
-                  <div className="variation-grid" role="listbox" aria-label="AI signature options">
-                    {aiVariations.map((variation) => (
-                      <button
-                        key={variation.id}
-                        type="button"
-                        role="option"
-                        aria-selected={selectedVariationId === variation.id}
-                        className={`variation-card${selectedVariationId === variation.id ? ' selected' : ''}`}
-                        onClick={() => setSelectedVariationId(variation.id)}
-                      >
-                        <img src={variation.dataUrl} alt={variation.label} />
-                        <span className="variation-label">{variation.label}</span>
-                        <span className="variation-desc">{variation.description}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {processedPreview && (
-                    <div className="preview-box">
-                      <span className="preview-caption">Selected (background removed)</span>
-                      <img src={processedPreview} alt="Selected signature" />
+                  <div className="preview-box ai-watermark-wrap">
+                    <span className="preview-caption">Preview</span>
+                    <div className="ai-watermark" aria-label="Watermarked preview">
+                      <img
+                        src={previewUrl}
+                        alt="Watermarked signature preview"
+                        draggable={false}
+                        onContextMenu={(e) => e.preventDefault()}
+                      />
                     </div>
-                  )}
+                    <small className="hint">Watermark is removed after payment.</small>
+                  </div>
+
+                  <div className="paywall">
+                    <p className="plan-name">Plan 1: Just Once</p>
+                    <p className="plan-price">$1</p>
+                    <ul className="plan-features">
+                      <li>Unlock this exact signature</li>
+                      <li>Sign unlimited PDFs with it this session</li>
+                      <li>No signup required</li>
+                    </ul>
+                    <button
+                      type="button"
+                      className="btn primary"
+                      disabled={checkoutLoading}
+                      onClick={handleCheckout}
+                    >
+                      {checkoutLoading ? 'Redirecting to checkout…' : 'Pay $1 to unlock'}
+                    </button>
+                  </div>
                 </>
               )}
             </>

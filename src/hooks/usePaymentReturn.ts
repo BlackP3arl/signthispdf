@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { verifyCheckoutSession } from '../lib/payment'
+import { saveAiSignature } from '../lib/aiEntitlement'
 
 export function usePaymentReturn() {
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null)
@@ -20,8 +21,9 @@ export function usePaymentReturn() {
 
     setVerifying(true)
     verifyCheckoutSession(localId)
-      .then(() => {
-        setPaymentMessage('Payment successful. You can generate one AI signature this session.')
+      .then((dataUrl) => {
+        saveAiSignature(dataUrl)
+        setPaymentMessage('Payment successful. Your AI signature is ready to place on unlimited PDFs this session.')
         document.getElementById('sign')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       })
       .catch(() => {
