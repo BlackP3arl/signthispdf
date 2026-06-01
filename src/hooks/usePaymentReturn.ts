@@ -22,6 +22,7 @@ export function usePaymentReturn() {
     verifyCheckoutSession(sessionId)
       .then(() => {
         setPaymentMessage('Payment successful. You can generate one AI signature this session.')
+        document.getElementById('sign')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
       })
       .catch(() => {
         setPaymentMessage('Payment could not be verified. Please contact support if you were charged.')
