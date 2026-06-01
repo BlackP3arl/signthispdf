@@ -37,7 +37,7 @@ export function LandingPage({ onStart }: Props) {
     <div className="landing">
       <header className="landing-nav">
         <a className="landing-logo" href="#" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }) }}>
-          <span className="landing-logo-mark" aria-hidden />
+          <img className="landing-logo-mark" src="/logo.svg" alt="" aria-hidden width="32" height="32" />
           SignThisPDF
         </a>
 
