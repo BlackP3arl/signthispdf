@@ -1,48 +1,27 @@
-import { getEntitlementToken, markGenerationUsed, setEntitlementToken } from './aiEntitlement'
-
-export type AiSignatureVariation = {
-  id: string
-  label: string
-  description: string
+export type AiPreview = {
+  previewId: string
   dataUrl: string
 }
 
-export async function generateAiSignatures(name: string): Promise<AiSignatureVariation[]> {
-  const token = getEntitlementToken()
-  if (!token) {
-    throw new Error('Payment required for AI signatures')
-  }
-
-  const response = await fetch('/api/generate-signatures', {
+// Free, pre-payment preview: generates one premium signature and returns the
+// (clean) image plus a previewId the user pays to unlock. The image is shown
+// under a watermark overlay in the UI until payment completes.
+export async function previewAiSignature(name: string): Promise<AiPreview> {
+  const response = await fetch('/api/preview-signature', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Entitlement-Token': token,
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name: name.trim() }),
   })
 
   const body = (await response.json()) as {
-    variations?: AiSignatureVariation[]
-    entitlementToken?: string
-    generationUsed?: boolean
+    previewId?: string
+    dataUrl?: string
     error?: string
   }
 
-  if (!response.ok) {
-    throw new Error(body.error ?? 'Failed to generate signatures')
+  if (!response.ok || !body.previewId || !body.dataUrl) {
+    throw new Error(body.error ?? 'Failed to generate preview')
   }
 
-  if (body.entitlementToken) {
-    setEntitlementToken(body.entitlementToken)
-  }
-  if (body.generationUsed) {
-    markGenerationUsed()
-  }
-
-  if (!body.variations?.length) {
-    throw new Error('No signature variations were returned')
-  }
-
-  return body.variations
+  return { previewId: body.previewId, dataUrl: body.dataUrl }
 }

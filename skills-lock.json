@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "visual-content": {
+      "source": "kostja94/marketing-skills",
+      "sourceType": "github",
+      "skillPath": "skills/content/visual-content/SKILL.md",
+      "computedHash": "448ce5819574c9120dece89031c805c028551f573d3118f263100238a7bbe796"
+    }
+  }
+}

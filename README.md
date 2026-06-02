@@ -25,18 +25,22 @@ npm run dev
 
 Open the URL shown in the terminal (usually http://localhost:5173).
 
-### AI signatures (Stripe + OpenRouter + Gemini)
+### AI signatures (BML Connect + OpenRouter + Gemini)
 
-1. Copy `.env.example` to `.env`
+For local development the Worker reads secrets from `.dev.vars` (gitignored):
+
+1. Create `.dev.vars` in the project root
 2. Set `OPENROUTER_API_KEY` from [openrouter.ai/keys](https://openrouter.ai/keys)
-3. Set `STRIPE_SECRET_KEY` from [Stripe Dashboard](https://dashboard.stripe.com/apikeys) (test mode is fine)
+3. Set `BML_API_KEY` from your Bank of Maldives merchant dashboard (sandbox key for testing), and `BML_MODE=sandbox`
 4. Set `ENTITLEMENT_SECRET` to a long random string
-5. Set `VITE_APP_URL` to your app URL (e.g. `http://localhost:5173`)
+5. Set `APP_URL` to your app URL (e.g. `http://localhost:5173`)
 6. Optional: set `OPENROUTER_IMAGE_MODEL` (default: `google/gemini-2.5-flash-image`)
 
-Under **Type → AI signature**, pay **$1 (Just Once)** to unlock one AI generation this browser session. Pick one of three variations, then place that signature on unlimited PDFs until you close the tab.
+See `.env.example` for the full list and `DEPLOY.md` for production secrets.
 
-API calls run through a local Vite proxy so secrets never ship to the browser.
+Under **Type → AI signature**, pay the **Just Once** fee to unlock one AI generation this browser session. Pick one of three variations, then place that signature on unlimited PDFs until you close the tab.
+
+API calls run through the Cloudflare Worker so secrets never ship to the browser.
 
 ## Build
 

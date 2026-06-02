@@ -1,10 +1,10 @@
-import { markGenerationUsed, setEntitlementToken } from './aiEntitlement'
-
-export async function startJustOnceCheckout(): Promise<void> {
-  const response = await fetch('/api/create-checkout-session', {
+// Starts a BML Connect checkout for a specific previewed signature. The
+// previewId binds the payment to the image the user previewed.
+export async function startJustOnceCheckout(previewId: string): Promise<void> {
+  const response = await fetch('/api/create-transaction', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: '{}',
+    body: JSON.stringify({ previewId }),
   })
   const body = (await response.json()) as { url?: string; error?: string }
   if (!response.ok || !body.url) {
@@ -13,22 +13,17 @@ export async function startJustOnceCheckout(): Promise<void> {
   window.location.href = body.url
 }
 
-export async function verifyCheckoutSession(sessionId: string): Promise<void> {
+// Verifies a completed BML payment and returns the clean (unwatermarked)
+// signature image that was generated at preview time.
+export async function verifyCheckoutSession(localId: string): Promise<string> {
   const response = await fetch('/api/verify-payment', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sessionId }),
+    body: JSON.stringify({ localId }),
   })
-  const body = (await response.json()) as {
-    entitlementToken?: string
-    generationUsed?: boolean
-    error?: string
-  }
-  if (!response.ok || !body.entitlementToken) {
+  const body = (await response.json()) as { dataUrl?: string; error?: string }
+  if (!response.ok || !body.dataUrl) {
     throw new Error(body.error ?? 'Payment verification failed')
   }
-  setEntitlementToken(body.entitlementToken)
-  if (body.generationUsed) {
-    markGenerationUsed()
-  }
+  return body.dataUrl
 }
