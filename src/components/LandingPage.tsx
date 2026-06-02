@@ -64,6 +64,11 @@ export function LandingPage({ onStart }: Props) {
 
       <section className="landing-hero">
         <div className="landing-hero-copy">
+          <button type="button" className="landing-announce" onClick={() => scrollTo('ai')}>
+            <span className="landing-announce-tag">New</span>
+            <span>AI handwritten signatures — calligraphy quality</span>
+            <span aria-hidden className="landing-announce-arrow">→</span>
+          </button>
           <p className="landing-eyebrow">Private · Instant · No account</p>
           <h1>
             Sign any PDF in <em>under a minute</em>
