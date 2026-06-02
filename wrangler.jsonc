@@ -12,9 +12,9 @@
   },
   "vars": {
     "BML_MODE": "sandbox",
-    "APP_URL": "http://localhost:5173"
+    "APP_URL": "https://signthispdf.salle-kma.workers.dev"
   },
   "kv_namespaces": [
-    { "binding": "ENTITLEMENTS", "id": "PLACEHOLDER_REPLACE_AFTER_KV_CREATE" }
+    { "binding": "ENTITLEMENTS", "id": "63edb9cbe47b41d0a58317dc03b4957a" }
   ]
 }

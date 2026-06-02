@@ -37,7 +37,8 @@ export async function handleCreateTransaction(req: Request, env: Env, cors: Reco
     // redirect without ever being exposed in the URL.
     await env.ENTITLEMENTS.put(`pending:${sid}`, JSON.stringify({ bmlTxnId: txn.id, previewId }), { expirationTtl: 3600 })
     return json(200, { url: txn.url }, cors)
-  } catch {
+  } catch (err) {
+    console.error('create-transaction failed:', err instanceof Error ? err.message : String(err))
     return json(502, { error: 'Failed to start checkout' }, cors)
   }
 }
