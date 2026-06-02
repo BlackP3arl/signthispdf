@@ -111,7 +111,7 @@ export function LandingPage({ onStart }: Props) {
       <section className="landing-strip">
         <div><strong>60 sec</strong><span>Average time to first signature</span></div>
         <div><strong>$0</strong><span>To start — type or upload free</span></div>
-        <div><strong>100%</strong><span>Browser-local PDF processing</span></div>
+        <div><strong>100%</strong><span>Private — files stay on your device</span></div>
       </section>
 
       <section id="features" className="landing-section">
